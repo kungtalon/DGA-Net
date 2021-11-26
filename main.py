@@ -18,16 +18,18 @@ def _init_():
         os.makedirs('checkpoints')
 
 def train(args):
-    train_loader = DataLoader(ModelNet40(partition='train', num_points=args.num_points), num_workers=1,
+    train_loader = DataLoader(ModelNet40(partition='train', num_points=args.num_points), num_workers=8,
                               batch_size=args.batch_size, shuffle=True, drop_last=True)
-    test_loader = DataLoader(ModelNet40(partition='test', num_points=args.num_points), num_workers=1,
+    test_loader = DataLoader(ModelNet40(partition='test', num_points=args.num_points), num_workers=8,
                              batch_size=args.test_batch_size, shuffle=True, drop_last=False)
 
     device = torch.device("cuda" if args.cuda else "cpu")
 
     #Try to load models
-    model = DGCNN(args).to(device)
-
+    if args.model == 'dgcnn':
+        model = DGCNN(args).to(device)
+    else:
+        model = Mymodel(args).to(device)
     model = nn.DataParallel(model)
     print("Let's use", torch.cuda.device_count(), "GPUs!")
 
@@ -174,10 +176,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Point Cloud Learning')
     parser.add_argument('--dataset', type=str, default='modelnet40', metavar='N',
                         choices=['modelnet40'])
-    parser.add_argument('--batch_size', type=int, default=2, metavar='batch_size',
+    parser.add_argument('--batch_size', type=int, default=24, metavar='batch_size',
                         help='Size of batch)')
-    parser.add_argument('--test_batch_size', type=int, default=2, metavar='batch_size',
+    parser.add_argument('--test_batch_size', type=int, default=24, metavar='batch_size',
                         help='Size of batch)')
+    parser.add_argument('--model', type=str, default='dgcnn', metavar='N',
+                        choices=['mymodel', 'dgcnn'],
+                        help='Model to use, [mymodel, dgcnn]')
     parser.add_argument('--epochs', type=int, default=250, metavar='N',
                         help='number of episode to train ')
     parser.add_argument('--use_sgd', type=bool, default=False,
@@ -208,6 +213,7 @@ if __name__ == "__main__":
 
     _init_()
 
+    print('Args: \n', args)
     args.cuda = not args.no_cuda and torch.cuda.is_available()
     torch.manual_seed(args.seed)
     if args.cuda:

@@ -146,7 +146,7 @@ class Attentive_Pooling(nn.Module):
         self.args = args
         self.heads = args.heads
         self.atten_score = nn.Linear(args.emb_dims, args.heads, bias=False)
-        self.atten_bn = nn.BatchNorm1d(args.emb_dims * args.heads)
+        self.atten_bn = nn.LayerNorm(args.emb_dims * args.heads)
 
     def forward(self,x):
         x = x.permute(0, 2, 1)
