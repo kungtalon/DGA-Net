@@ -18,9 +18,9 @@ def _init_():
         os.makedirs('checkpoints')
 
 def train(args):
-    train_loader = DataLoader(ModelNet40(partition='train', num_points=args.num_points), num_workers=8,
+    train_loader = DataLoader(ModelNet40(partition='train', num_points=args.num_points), num_workers=4,
                               batch_size=args.batch_size, shuffle=True, drop_last=True)
-    test_loader = DataLoader(ModelNet40(partition='test', num_points=args.num_points), num_workers=8,
+    test_loader = DataLoader(ModelNet40(partition='test', num_points=args.num_points), num_workers=4,
                              batch_size=args.test_batch_size, shuffle=True, drop_last=False)
 
     device = torch.device("cuda" if args.cuda else "cpu")
@@ -126,11 +126,12 @@ def train(args):
         test_data['weighted_accuracy'].append(avg_per_class_acc)
         print(outstr)
 
-        if test_final_loss<=best_test_acc:
-            best_test_acc=test_final_loss
+        if test_acc >= best_test_acc:
+            best_test_acc = test_acc
             torch.save(model.state_dict(), 'checkpoints/model%s.t7' % epoch)
 
-        save_loss([train_data['loss'], train_data['average_accuracy'], train_data['weighted_accuracy']],
+        save_loss(args.exp_name,
+                  [train_data['loss'], train_data['average_accuracy'], train_data['weighted_accuracy']],
                   [test_data['loss'], test_data['average_accuracy'], test_data['weighted_accuracy']],
                   epoch + 1
                   )
@@ -174,6 +175,7 @@ def test(args, io):
 if __name__ == "__main__":
     # Training settings
     parser = argparse.ArgumentParser(description='Point Cloud Learning')
+    parser.add_argument('--exp_name', type=str)
     parser.add_argument('--dataset', type=str, default='modelnet40', metavar='N',
                         choices=['modelnet40'])
     parser.add_argument('--batch_size', type=int, default=24, metavar='batch_size',

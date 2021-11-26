@@ -24,7 +24,7 @@ def cal_loss(pred, gold, smoothing=True):
     return loss
 
 
-def save_loss(train_list, test_list, epoch):
+def save_loss(exp_name, train_list, test_list, epoch):
     h = len(train_list)
     fig = plt.figure(figsize=(20, 20))
     loss_name = ["loss", "ave_acc", "weighted_acc"]
@@ -41,7 +41,7 @@ def save_loss(train_list, test_list, epoch):
         ax.set_xlabel("epoch")
         ax.set_ylabel("value")
     # Save the full figure...
-    if os.path.exists('Loss.png'):
-        os.remove('Loss.png')
-    fig.savefig('Loss.png')
-    plt.clf()
+    if os.path.exists(exp_name + '_loss.png'):
+        os.remove(exp_name + '_loss.png')
+    fig.savefig(exp_name + '_loss.png')
+    plt.close()
