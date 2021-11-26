@@ -26,7 +26,7 @@ def train(args):
     device = torch.device("cuda" if args.cuda else "cpu")
 
     #Try to load models
-    model = Mymodel(args).to(device)
+    model = DGCNN(args).to(device)
 
     model = nn.DataParallel(model)
     print("Let's use", torch.cuda.device_count(), "GPUs!")
