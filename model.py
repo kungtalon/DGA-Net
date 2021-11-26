@@ -8,13 +8,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-def knn(x, k):
+def knn(x, k, no_loop=False):
     inner = -2*torch.matmul(x.transpose(2, 1), x)
     xx = torch.sum(x**2, dim=1, keepdim=True)
     pairwise_distance = -xx - inner - xx.transpose(2, 1)
  
-    idx = pairwise_distance.topk(k=k+1, dim=-1)[1]   # (batch_size, num_points, k)
-    idx = idx[:,:,1:]
+    idx = pairwise_distance.topk(k=k+int(no_loop), dim=-1)[1]   # (batch_size, num_points, k)
+    if no_loop:
+        idx = idx[:,:,1:]
     return idx
 
 
@@ -49,7 +50,7 @@ def attention(x, k=10, idx=None):
     num_points = x.size(2)
     x = x.view(batch_size, -1, num_points)
     if idx is None:
-        idx = knn(x, k=k)  # (batch_size, num_points, k)
+        idx = knn(x, k=k, no_loop=True)  # (batch_size, num_points, k)
     device = torch.device('cuda')
 
     idx_base = torch.arange(0, batch_size, device=device).view(-1, 1, 1) * num_points
