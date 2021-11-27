@@ -2,6 +2,7 @@ import os
 import sys
 import copy
 import math
+from typing import ForwardRef
 import numpy as np
 import torch
 import torch.nn as nn
@@ -161,6 +162,64 @@ class Attentive_Pooling(nn.Module):
 
         return  atten_out
 
+class SelfAttention(nn.Module):
+    def __init__(self, seq_len, input_dim, emb_dim, value_dim, n_heads, output_dim, attention_mode='scale_dot'):
+        self.n_heads = n_heads
+        self.seq_len = seq_len
+        self.query_transforms = [nn.Linear(input_dim, emb_dim) for _ in range(n_heads)]
+        self.key_transforms = [nn.Linear(input_dim, emb_dim) for _ in range(n_heads)]
+        self.value_transforms = [nn.Linear(input_dim, value_dim) for _ in range(n_heads)]
+        self.output_layer = nn.Sequential(nn.Conv1d(value_dim * n_heads, output_dim, kernel_size=1, bias=False),
+                                          nn.BatchNorm1d(output_dim),
+                                          nn.LeakyReLU(negative_slope=0.2))
+        
+        if attention_mode == 'dot':
+            self.attention_op = lambda q, k: torch.matmul(q, k.permute(0, 1, 3, 2)) # (b,n,k,k)
+        elif attention_mode == 'scale_dot':
+            self.attention_op = lambda q, k: torch.matmul(q, k.permute(0, 1, 3, 2)) / torch.sqrt(emb_dim)
+        elif attention_mode == 'additive':
+            self.additive_layer = nn.Linear(2 * emb_dim, value_dim, bias=False)
+            self.attention_op = lambda q, k: self.additive_layer(torch.cat([q, k], dim=-1))
+
+    def get_neigbor_seqence(self, x):
+        batch_size = x.size(0)
+        num_dims = x.size(1)
+        num_points = x.size(2)
+        nx = x.view(batch_size, -1, num_points)
+        idx = knn(nx, k=self.seq_len, no_loop=True)  # (batch_size, num_points, k)
+        device = torch.device('cuda')
+
+        idx_base = torch.arange(0, batch_size, device=device).view(-1, 1, 1) * num_points
+
+        idx = idx + idx_base
+
+        idx = idx.view(-1)
+
+        nx = nx.transpose(2, 1).contiguous()
+        nx = nx.view(batch_size * num_points, -1)[idx, :] # (b,n,k,d)
+        return nx
+
+    def forward(self, x):
+        neighbors = self.get_neigbor_seqence(x)
+
+        q = torch.cat([neighbors, x.unsqueeze(2)], dim=2)
+        k = neighbors
+        v = neighbors - x.unsqueeze(2)
+        heads_out = []
+        for i in range(self.n_heads):
+            query =  self.query_transforms[i](q)
+            key = self.key_transforms[i](k)
+            value = self.value_transforms[i](v)
+
+            scores = F.softmax(self.attention_op(query, key.permute(0,1,3,2)), dim=-1)
+            out = torch.mean(torch.matmul(scores, value), dim=2)
+            heads_out.append(out)
+        
+        mix = torch.cat(heads_out, dim=-1).permute(0, 2, 1).contiguous() # (b, n, e) -> (b, e, n)
+        result = self.output_layer(mix)  # (b, e, n) -> (b, d, n)
+        return torch.cat([result, x], dim=1)
+
+
 class Mymodel(nn.Module):
     def __init__(self, args, output_channels=40):
         super(Mymodel, self).__init__()
@@ -196,18 +255,25 @@ class Mymodel(nn.Module):
         self.dp2 = nn.Dropout(p=args.dropout)
         self.linear3 = nn.Linear(256, output_channels)
 
+        self.self_att1 = SelfAttention(args.k, 3, 3, 3, 1, 3)
+        self.self_att2 = SelfAttention(args.k, 64, 64, 64, 1, 64)
+        self.self_att3 = SelfAttention(args.k, 128, 128, 128, 1, 128)
+        self.self_att4 = SelfAttention(args.k, 256, 256, 256, 1, 256)
+
     def forward(self, x):
         batch_size = x.size(0)
-        x = attention(x, k=self.k)
+        # x = attention(x, k=self.k)
+        x = self.self_att1(x)
         x1 = self.conv1(x)
 
-        x = attention(x1, k=self.k)
+        # x = attention(x1, k=self.k)
+        x = self.self_att2(x1)
         x2 = self.conv2(x)
 
-        x = attention(x2, k=self.k)
+        x = self.self_att3(x2)
         x3 = self.conv3(x)
 
-        x = attention(x3, k=self.k)
+        x = self.self_att4(x3)
         x4 = self.conv4(x)  #b * d * n
 
         x = torch.cat((x1, x2, x3, x4), dim=1) #b*512*n
