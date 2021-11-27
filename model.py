@@ -195,7 +195,7 @@ class SelfAttention(nn.Module):
 
         idx = idx.view(-1)
 
-        nx = nx.transpose(2, 1).contiguous()
+        nx = nx.transpose(2, 1).contiguous() # (b, n, d)
         nx = nx.view(batch_size * num_points, -1)[idx, :] 
         nx = nx.view(batch_size, num_points, self.seq_len, num_dims).contiguous() # (b,n,k,d)
         return nx
@@ -203,9 +203,10 @@ class SelfAttention(nn.Module):
     def forward(self, x):
         neighbors = self.get_neigbor_seqence(x)
 
-        q = torch.cat([neighbors, x.unsqueeze(2)], dim=2)
+        xx = x.transpose(2, 1).contiguous()  # (b, d, n) -> (b, n, d)
+        q = torch.cat([neighbors, xx.unsqueeze(2)], dim=2)
         k = neighbors
-        v = neighbors - x.unsqueeze(2)
+        v = neighbors - xx.unsqueeze(2)
         heads_out = []
         for i in range(self.n_heads):
             query =  self.query_transforms[i](q)
