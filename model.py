@@ -166,9 +166,9 @@ class SelfAttention(nn.Module):
         super(SelfAttention, self).__init__()
         self.n_heads = n_heads
         self.seq_len = seq_len
-        self.query_transforms = [nn.Linear(input_dim, emb_dim) for _ in range(n_heads)]
-        self.key_transforms = [nn.Linear(input_dim, emb_dim) for _ in range(n_heads)]
-        self.value_transforms = [nn.Linear(input_dim, value_dim) for _ in range(n_heads)]
+        self.query_transforms = nn.ModuleList([nn.Linear(input_dim, emb_dim) for _ in range(n_heads)])
+        self.key_transforms = nn.ModuleList([nn.Linear(input_dim, emb_dim) for _ in range(n_heads)])
+        self.value_transforms = nn.ModuleList([nn.Linear(input_dim, value_dim) for _ in range(n_heads)])
         self.output_layer = nn.Sequential(nn.Conv1d(value_dim * n_heads, output_dim, kernel_size=1, bias=False),
                                           nn.BatchNorm1d(output_dim),
                                           nn.LeakyReLU(negative_slope=0.2))
