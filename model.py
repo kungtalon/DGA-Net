@@ -2,7 +2,6 @@ import os
 import sys
 import copy
 import math
-from typing import ForwardRef
 import numpy as np
 import torch
 import torch.nn as nn
@@ -164,6 +163,7 @@ class Attentive_Pooling(nn.Module):
 
 class SelfAttention(nn.Module):
     def __init__(self, seq_len, input_dim, emb_dim, value_dim, n_heads, output_dim, attention_mode='scale_dot'):
+        super(SelfAttention, self).__init__()
         self.n_heads = n_heads
         self.seq_len = seq_len
         self.query_transforms = [nn.Linear(input_dim, emb_dim) for _ in range(n_heads)]
