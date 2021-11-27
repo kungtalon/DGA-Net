@@ -196,7 +196,8 @@ class SelfAttention(nn.Module):
         idx = idx.view(-1)
 
         nx = nx.transpose(2, 1).contiguous()
-        nx = nx.view(batch_size * num_points, -1)[idx, :] # (b,n,k,d)
+        nx = nx.view(batch_size * num_points, -1)[idx, :] 
+        nx = nx.view(batch_size, num_points, self.seq_len, num_dims).contiguous() # (b,n,k,d)
         return nx
 
     def forward(self, x):
