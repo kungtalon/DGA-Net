@@ -175,14 +175,14 @@ def test(args, io):
 if __name__ == "__main__":
     # Training settings
     parser = argparse.ArgumentParser(description='Point Cloud Learning')
-    parser.add_argument('--exp_name', type=str)
+    parser.add_argument('--exp_name', type=str, default='default')
     parser.add_argument('--dataset', type=str, default='modelnet40', metavar='N',
                         choices=['modelnet40'])
     parser.add_argument('--batch_size', type=int, default=24, metavar='batch_size',
                         help='Size of batch)')
     parser.add_argument('--test_batch_size', type=int, default=24, metavar='batch_size',
                         help='Size of batch)')
-    parser.add_argument('--model', type=str, default='dgcnn', metavar='N',
+    parser.add_argument('--model', type=str, default='mymodel', metavar='N',
                         choices=['mymodel', 'dgcnn'],
                         help='Model to use, [mymodel, dgcnn]')
     parser.add_argument('--epochs', type=int, default=250, metavar='N',
@@ -211,11 +211,17 @@ if __name__ == "__main__":
                         help='Num of nearest neighbors to use')
     parser.add_argument('--model_path', type=str, default='', metavar='N',
                         help='Pretrained model path')
+    parser.add_argument('--debug', action='store_true')
     args = parser.parse_args()
 
     _init_()
 
     print('Args: \n', args)
+    if args.debug:
+        args.no_cuda = True
+        args.batch_size = 2
+        args.num_points = 24
+        args.emb_dims = 36
     args.cuda = not args.no_cuda and torch.cuda.is_available()
     torch.manual_seed(args.seed)
     if args.cuda:
