@@ -146,18 +146,18 @@ class Attentive_Pooling(nn.Module):
         self.args = args
         self.heads = args.heads
         self.atten_score = nn.Linear(args.emb_dims, args.heads, bias=False)
-        self.atten_bn = nn.LayerNorm(args.emb_dims * args.heads)
+        # self.atten_bn = nn.LayerNorm(args.emb_dims * args.heads)
 
     def forward(self,x):
         x = x.permute(0, 2, 1)
-        scores = F.leaky_relu(self.atten_score(x),negative_slope=0.2)  # b*n*h
+        scores = F.softmax(self.atten_score(x), dim=1)  # b*n*h
         atten_out = []  # h*b*d  to save memory
         for i in range(self.heads):
             score = scores[:, :, [i]]  # b*n*1
             atten_out.append(torch.sum(x * score, dim=1))
         atten_out = torch.cat(atten_out, dim=-1)  # list -> tensor  b*(h*d)
 
-        atten_out = F.leaky_relu(self.atten_bn(atten_out),negative_slope=0.2)
+        # atten_out = F.leaky_relu(self.atten_bn(atten_out),negative_slope=0.2)
 
         return  atten_out
 
