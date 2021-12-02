@@ -60,6 +60,11 @@ def train(args):
         ####################
         # Train
         ####################
+        if args.opt_switch > 0 and epoch > args.opt_switch:
+            cur_lr = opt.param_groups[0]['lr']
+            opt = optim.SGD(model.parameters(), lr=cur_lr*100, momentum=args.momentum, weight_decay=1e-4)
+            scheduler = CosineAnnealingLR(opt, args.epochs - args.opt_switch, eta_min=args.lr)
+            
         train_loss = 0.0
         count = 0.0
         model.train()
@@ -176,7 +181,7 @@ def test(args, io):
 if __name__ == "__main__":
     # Training settings
     parser = argparse.ArgumentParser(description='Point Cloud Learning')
-    parser.add_argument('--exp_name', type=str, default='debug')
+    parser.add_argument('--exp_name', type=str, default='default')
     parser.add_argument('--dataset', type=str, default='modelnet40', metavar='N',
                         choices=['modelnet40'])
     parser.add_argument('--batch_size', type=int, default=24, metavar='batch_size',
@@ -212,11 +217,19 @@ if __name__ == "__main__":
                         help='Num of nearest neighbors to use')
     parser.add_argument('--model_path', type=str, default='', metavar='N',
                         help='Pretrained model path')
+    parser.add_arugument('--opt_switch', type=int, default=0)
     parser.add_argument('--debug', action='store_true')
     args = parser.parse_args()
 
     _init_()
 
+    if args.debug:
+        args.no_cuda = True
+        args.batch_size = 2
+        args.num_points = 24
+        args.emb_dims = 36
+    if args.opt_switch:
+        args.use_sgd = False
     print('Args: \n', args)
     if args.debug:
         args.no_cuda = True
@@ -232,3 +245,4 @@ if __name__ == "__main__":
         train(args)
     else:
         test(args)
+
