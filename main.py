@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 from __future__ import print_function
 import os
 import argparse
@@ -217,7 +218,7 @@ if __name__ == "__main__":
     parser.add_argument('--model_path', type=str, default='', metavar='N',
                         help='Pretrained model path')
     parser.add_argument('--nthreads', type=int, default=4, help='Num of worker for data loading')
-    parser.add_arugument('--opt_switch', type=int, default=0)
+    parser.add_argument('--opt_switch', type=int, default=0)
     parser.add_argument('--debug', action='store_true')
     args = parser.parse_args()
 
