@@ -18,9 +18,9 @@ def _init_():
         os.makedirs('checkpoints')
 
 def train(args):
-    train_loader = DataLoader(ModelNet40(partition='train', num_points=args.num_points), num_workers=4,
+    train_loader = DataLoader(ModelNet40(partition='train', num_points=args.num_points), num_workers=args.nthreads,
                               batch_size=args.batch_size, shuffle=True, drop_last=True)
-    test_loader = DataLoader(ModelNet40(partition='test', num_points=args.num_points), num_workers=4,
+    test_loader = DataLoader(ModelNet40(partition='test', num_points=args.num_points), num_workers=args.nthreads,
                              batch_size=args.test_batch_size, shuffle=True, drop_last=False)
 
     device = torch.device("cuda" if args.cuda else "cpu")
@@ -211,17 +211,19 @@ if __name__ == "__main__":
                         help='Num of nearest neighbors to use')
     parser.add_argument('--model_path', type=str, default='', metavar='N',
                         help='Pretrained model path')
+    parser.add_argument('--nthreads', type=int, default=4, help='Num of worker for data loading')
     parser.add_argument('--debug', action='store_true')
     args = parser.parse_args()
 
     _init_()
 
-    print('Args: \n', args)
     if args.debug:
         args.no_cuda = True
         args.batch_size = 2
         args.num_points = 24
         args.emb_dims = 36
+        args.nthreads = 1
+    print('Args: \n', args)
     args.cuda = not args.no_cuda and torch.cuda.is_available()
     torch.manual_seed(args.seed)
     if args.cuda:
