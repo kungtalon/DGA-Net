@@ -216,7 +216,7 @@ if __name__ == "__main__":
                         help='Num of nearest neighbors to use')
     parser.add_argument('--model_path', type=str, default='', metavar='N',
                         help='Pretrained model path')
-    parser.add_arugument('--opt_switch', type=int, default=0)
+    parser.add_argument('--opt_switch', type=int, default=0)
     parser.add_argument('--debug', action='store_true')
     args = parser.parse_args()
 
