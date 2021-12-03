@@ -330,14 +330,13 @@ class DGANetSpectral(nn.Module):
         self.self_att3 = SelfAttention(args.k, 64, 64, 64, 1, 64)
         self.self_att4 = SelfAttention(args.k, 128, 128, 128, 1, 128)
 
+        device = torch.device('cuda') if args.cuda else torch.device('cpu')
         self.k_cluster = args.k_cluster
-        init_clustering = torch.normal(0, 1/ np.sqrt(args.num_points), (args.num_points, args.k_cluster))
-        self.clustering = torch.autograd.Variable(init_clustering, requires_grad=True)
-        self.identity_mat = torch.eye(self.k_cluster) / np.sqrt(self.k_cluster)
+        init_clustering = torch.normal(0, 1/ np.sqrt(args.num_points), (args.num_points, args.k_cluster), requires_grad=True)
+        self.clustering = nn.Parameter(init_clustering)
+        self.identity_mat = torch.eye(self.k_cluster, device=device) / np.sqrt(self.k_cluster)
 
     def spectral_pooling(self, x):
-        device = torch.device('cuda') if x.is_cuda else torch.device('cpu')
-
         inner = -2*torch.matmul(x.transpose(2, 1), x)
         xx = torch.sum(x**2, dim=1, keepdim=True)
         adj = torch.exp((-xx - inner - xx.transpose(2, 1)) / 10)
