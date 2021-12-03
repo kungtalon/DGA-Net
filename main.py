@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from util import cal_loss,save_loss
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from data import ModelNet40
-from model import Attentive_Pooling,Mymodel,DGCNN
+from model import Attentive_Pooling,Mymodel,DGCNN,DGANetSpectral
 
 def _init_():
     if not os.path.exists('checkpoints'):
@@ -28,8 +28,10 @@ def train(args):
     #Try to load models
     if args.model == 'dgcnn':
         model = DGCNN(args).to(device)
-    else:
+    elif args.model == 'mymodel':
         model = Mymodel(args).to(device)
+    else:
+        model = DGANetSpectral(args).to(device)
     if args.cuda:
         model = nn.DataParallel(model)
     print("Let's use", torch.cuda.device_count(), "GPUs!")
@@ -66,6 +68,7 @@ def train(args):
             scheduler = CosineAnnealingLR(opt, args.epochs - args.opt_switch, eta_min=args.lr)
             
         train_loss = 0.0
+        aux_loss = 0.0
         count = 0.0
         model.train()
         train_pred = []
@@ -75,19 +78,25 @@ def train(args):
             data = data.permute(0, 2, 1) #b*n*d->b*d*n
             batch_size = data.size()[0]
             opt.zero_grad()
-            logits = model(data)
-            loss = criterion(logits, label)
+            if args.model == 'spectral':
+                logits, clustering_loss = model(data)
+                loss = criterion(logits, label) + args.spectral_weight * clustering_loss
+            else:
+                logits = model(data)
+                loss = criterion(logits, label)
             loss.backward()
             opt.step()
             preds = logits.max(dim=1)[1]
             count += batch_size
             train_loss += loss.item() * batch_size
+            aux_loss += clustering_loss.item() * batch_size if args.model == 'spectral' else 0
             train_true.append(label.cpu().numpy())
             train_pred.append(preds.detach().cpu().numpy())
         train_true = np.concatenate(train_true)
         train_pred = np.concatenate(train_pred)
         scheduler.step()
         final_loss = train_loss*1.0/count
+        final_aux_loss = aux_loss / count
         ave_accuracy = metrics.accuracy_score(train_true, train_pred)
         weighted_accuracy = metrics.balanced_accuracy_score(train_true, train_pred)
         outstr = 'Train %d, loss: %.6f, train acc: %.6f, train avg acc: %.6f' % (epoch,
@@ -98,11 +107,14 @@ def train(args):
         train_data['average_accuracy'].append(ave_accuracy)
         train_data['weighted_accuracy'].append(weighted_accuracy)
         print(outstr)
+        if args.model == 'spectral':
+            print('Spectral loss: %.6f' % final_aux_loss)
 
         ####################
         # Test
         ####################
         test_loss = 0.0
+        test_aux_loss = 0.0
         count = 0.0
         model.eval()
         test_pred = []
@@ -111,16 +123,22 @@ def train(args):
             data, label = data.to(device), label.to(device).squeeze()
             data = data.permute(0, 2, 1)
             batch_size = data.size()[0]
-            logits = model(data)
-            loss = criterion(logits, label)
+            if args.model == 'spectral':
+                logits, clustering_loss = model(data)
+                loss = criterion(logits, label) + args.spectral_weight * clustering_loss
+            else:
+                logits = model(data)
+                loss = criterion(logits, label)
             preds = logits.max(dim=1)[1]
             count += batch_size
             test_loss += loss.item() * batch_size
+            test_aux_loss += clustering_loss.item() * batch_size if args.model == 'spectral' else 0
             test_true.append(label.cpu().numpy())
             test_pred.append(preds.detach().cpu().numpy())
         test_true = np.concatenate(test_true)
         test_pred = np.concatenate(test_pred)
         test_final_loss = test_loss*1.0/count
+        test_final_aux_loss = test_aux_loss / count
         test_acc = metrics.accuracy_score(test_true, test_pred)
         avg_per_class_acc = metrics.balanced_accuracy_score(test_true, test_pred)
         outstr = 'Test %d, loss: %.6f, test acc: %.6f, test avg acc: %.6f' % (epoch,
@@ -131,6 +149,8 @@ def train(args):
         test_data['average_accuracy'].append(test_acc)
         test_data['weighted_accuracy'].append(avg_per_class_acc)
         print(outstr)
+        if args.model == 'spectral':
+            print('Spectral loss: %.6f' % test_final_aux_loss)
 
         if test_acc >= best_test_acc:
             best_test_acc = test_acc
@@ -189,7 +209,7 @@ if __name__ == "__main__":
     parser.add_argument('--test_batch_size', type=int, default=24, metavar='batch_size',
                         help='Size of batch)')
     parser.add_argument('--model', type=str, default='mymodel', metavar='N',
-                        choices=['mymodel', 'dgcnn'],
+                        choices=['mymodel', 'dgcnn', 'spectral'],
                         help='Model to use, [mymodel, dgcnn]')
     parser.add_argument('--epochs', type=int, default=250, metavar='N',
                         help='number of episode to train ')
@@ -218,6 +238,8 @@ if __name__ == "__main__":
     parser.add_argument('--model_path', type=str, default='', metavar='N',
                         help='Pretrained model path')
     parser.add_argument('--opt_switch', type=int, default=0)
+    parser.add_argument('--spectral_weight', type=float, default=1.0)
+    parser.add_argument('--k_cluster', type=int, default=20)
     parser.add_argument('--debug', action='store_true')
     args = parser.parse_args()
 
@@ -225,7 +247,7 @@ if __name__ == "__main__":
 
     if args.debug:
         args.no_cuda = True
-        args.batch_size = 2
+        args.batch_size = 8
         args.num_points = 24
         args.emb_dims = 36
     if args.opt_switch:
