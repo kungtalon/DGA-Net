@@ -60,8 +60,7 @@ def train(args):
         # Train
         ####################
         if args.opt_switch > 0 and epoch > args.opt_switch:
-            cur_lr = opt.param_groups[0]['lr']
-            opt = optim.SGD(model.parameters(), lr=cur_lr*100, momentum=args.momentum, weight_decay=1e-4)
+            opt = optim.SGD(model.parameters(), lr=args.lr*10, momentum=args.momentum, weight_decay=1e-4)
             scheduler = CosineAnnealingLR(opt, args.epochs - args.opt_switch, eta_min=args.lr)
             
         train_loss = 0.0
