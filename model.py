@@ -332,28 +332,34 @@ class DGANetSpectral(nn.Module):
 
         device = torch.device('cuda') if args.cuda else torch.device('cpu')
         self.k_cluster = args.k_cluster
-        init_clustering = torch.normal(0, 1/ np.sqrt(args.num_points), (args.num_points, args.k_cluster), requires_grad=True)
-        self.clustering = nn.Parameter(init_clustering)
+        self.temperature = args.temperature
+        # init_clustering = torch.normal(0, 1/ np.sqrt(args.num_points), (args.num_points, args.k_cluster), requires_grad=True)
+        # self.clustering = nn.Parameter(init_clustering)
+        self.gen_clustering = nn.Conv1d(args.emb_dims, self.k_cluster, kernel_size=1)
         self.identity_mat = torch.eye(self.k_cluster, device=device) / np.sqrt(self.k_cluster)
 
     def spectral_pooling(self, x):
         inner = -2*torch.matmul(x.transpose(2, 1), x)
         xx = torch.sum(x**2, dim=1, keepdim=True)
         adj = torch.exp((-xx - inner - xx.transpose(2, 1)) / 10)
-        deg_mat = torch.diag_embed((torch.sum(adj, dim=-1) + 1e-10) ** (-0.5))
-        laplacian = torch.matmul(torch.matmul(deg_mat, adj), deg_mat) # 
+        deg_diag = torch.sum(adj, dim=-1)
+        deg_mat = torch.diag_embed((deg_diag + 1e-10) ** (-0.5))
+        laplacian = torch.matmul(torch.matmul(deg_mat, adj), deg_mat)
+
+        clustering = F.softmax(self.gen_clustering(x) / self.temperature, dim=1)
+        clustering = clustering.transpose(2,1).contiguous() # b, n, k
 
         trace = lambda tensor: torch.diagonal(tensor, dim1=1, dim2=2).sum(axis=-1)
-        cut_cost = trace(torch.matmul(torch.matmul(self.clustering.permute(1,0), laplacian), self.clustering))
-        min_cut_cost = trace(torch.matmul(torch.matmul(self.clustering.permute(1,0), deg_mat), self.clustering))
-        cut_loss = -torch.mean(cut_cost / (min_cut_cost + 1e-10))
-        
-        gram = torch.matmul(self.clustering.permute(1, 0), self.clustering) # (k, k)
-        gram = gram / (torch.linalg.norm(gram, dim=(0,1), ord='fro') + 1e-10)
-        orthog_diff = gram - self.identity_mat
-        orthog_loss = torch.mean(torch.linalg.norm(orthog_diff, dim=(0,1), ord='fro'))
+        cut_cost = trace(torch.matmul(torch.matmul(clustering.transpose(2,1), laplacian), clustering))
+        max_cut_cost = trace(torch.matmul(torch.matmul(clustering.transpose(2,1), torch.diag_embed(deg_diag)), clustering))
+        cut_loss = -torch.mean(cut_cost / max_cut_cost)
 
-        out = torch.matmul(x, self.clustering)
+        gram = torch.matmul(clustering.transpose(2, 1), clustering) # (b, k, k)
+        gram = gram / (torch.linalg.norm(gram, dim=(1,2), ord='fro') + 1e-10).reshape(-1, 1, 1)
+        orthog_diff = gram - self.identity_mat
+        orthog_loss = torch.mean(torch.linalg.norm(orthog_diff, dim=(1,2), ord='fro'))
+
+        out = torch.matmul(x, clustering)
         out = torch.max(out, axis=-1)[0]
 
         return out, cut_loss + orthog_loss

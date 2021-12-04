@@ -239,15 +239,18 @@ if __name__ == "__main__":
     parser.add_argument('--opt_switch', type=int, default=0)
     parser.add_argument('--spectral_weight', type=float, default=1.0)
     parser.add_argument('--k_cluster', type=int, default=20)
+    parser.add_argument('--temperature', type=float, default=1.0)
     parser.add_argument('--debug', action='store_true')
     args = parser.parse_args()
 
     _init_()
 
     if args.debug:
+        import torch.multiprocessing
+        torch.multiprocessing.set_sharing_strategy('file_system')
         args.no_cuda = True
-        args.batch_size = 8
-        args.num_points = 24
+        args.batch_size = 2
+        args.num_points = 12
         args.emb_dims = 36
     if args.opt_switch:
         args.use_sgd = False
