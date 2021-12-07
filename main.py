@@ -228,7 +228,7 @@ if __name__ == "__main__":
                         help='num of points to use')
     parser.add_argument('--dropout', type=float, default=0.5,
                         help='dropout rate')
-    parser.add_argument('--emb_dims', type=int, default=512, metavar='N',
+    parser.add_argument('--emb_dims', type=int, default=1024, metavar='N',
                         help='Dimension of embeddings')
     parser.add_argument('--heads', type=int, default=4, metavar='N',
                         help='number of heads')
@@ -240,6 +240,7 @@ if __name__ == "__main__":
     parser.add_argument('--spectral_weight', type=float, default=1.0)
     parser.add_argument('--k_cluster', type=int, default=20)
     parser.add_argument('--temperature', type=float, default=1.0)
+    parser.add_argument('--pooling', type=str, default='attentive')
     parser.add_argument('--debug', action='store_true')
     args = parser.parse_args()
 

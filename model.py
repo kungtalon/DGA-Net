@@ -249,7 +249,8 @@ class Mymodel(nn.Module):
         self.conv5 = nn.Sequential(nn.Conv1d(512, args.emb_dims, kernel_size=1, bias=False),
                                    self.bn5,
                                    nn.LeakyReLU(negative_slope=0.2))
-        self.linear1 = nn.Linear(args.emb_dims*args.heads,512)
+        self.atten_out_linear = nn.Linear(args.emb_dims*args.heads,args.emb_dims*2)
+        self.linear1 = nn.Linear(args.emb_dims*2,512)
         self.bn6 = nn.BatchNorm1d(512)
         self.dp1 = nn.Dropout(p=args.dropout)
         self.linear2 = nn.Linear(512, 256)
@@ -281,9 +282,15 @@ class Mymodel(nn.Module):
         x = torch.cat((x1, x2, x3, x4), dim=1) #b*512*n
         x = self.conv5(x)
 
-        atten_out = self.att_pooling(x)
+        if self.args.pooling == 'max':
+            x1 = F.adaptive_max_pool1d(x, 1).view(batch_size, -1)
+            x2 = F.adaptive_avg_pool1d(x, 1).view(batch_size, -1)
+            pooling_out = torch.cat((x1, x2), 1)
+        else:
+            atten_out = self.att_pooling(x)
+            pooling_out = self.atten_out_linear(atten_out)
 
-        x = F.leaky_relu(self.bn6(self.linear1(atten_out)), negative_slope=0.2)
+        x = F.leaky_relu(self.bn6(self.linear1(pooling_out)), negative_slope=0.2)
         x = self.dp1(x)
         x = F.leaky_relu(self.bn7(self.linear2(x)), negative_slope=0.2)
         x = self.dp2(x)
