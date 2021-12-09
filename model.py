@@ -324,7 +324,8 @@ class DGANetSpectral(nn.Module):
         self.conv5 = nn.Sequential(nn.Conv1d(512, args.emb_dims, kernel_size=1, bias=False),
                                    self.bn5,
                                    nn.LeakyReLU(negative_slope=0.2))
-        self.linear1 = nn.Linear(args.emb_dims,512)
+        self.atten_out_linear = nn.Linear(args.emb_dims*args.heads,args.emb_dims*2)
+        self.linear1 = nn.Linear(args.emb_dims*2,512)
         self.bn6 = nn.BatchNorm1d(512)
         self.dp1 = nn.Dropout(p=args.dropout)
         self.linear2 = nn.Linear(512, 256)
@@ -345,7 +346,7 @@ class DGANetSpectral(nn.Module):
         self.gen_clustering = nn.Conv1d(args.emb_dims, self.k_cluster, kernel_size=1)
         self.identity_mat = torch.eye(self.k_cluster, device=device) / np.sqrt(self.k_cluster)
 
-    def spectral_pooling(self, x):
+    def spectral_pooling(self, x, pooling='adaptive'):
         inner = -2*torch.matmul(x.transpose(2, 1), x)
         xx = torch.sum(x**2, dim=1, keepdim=True)
         adj = torch.exp((-xx - inner - xx.transpose(2, 1)) / 10)
@@ -367,7 +368,13 @@ class DGANetSpectral(nn.Module):
         orthog_loss = torch.mean(torch.linalg.norm(orthog_diff, dim=(1,2), ord='fro'))
 
         out = torch.matmul(x, clustering)
-        out = torch.max(out, axis=-1)[0]
+        if pooling == 'adaptive':
+            out1 = F.adaptive_max_pool1d(out, 1).view(x.shape[0], -1)
+            out2 = F.adaptive_avg_pool1d(out, 1).view(x.shape[0], -1)
+            out = torch.cat((out1, out2), 1)
+        else:
+            out = self.att_pooling(out)
+            out = self.atten_out_linear(out)
 
         return out, cut_loss + orthog_loss
 
@@ -390,7 +397,7 @@ class DGANetSpectral(nn.Module):
         x = torch.cat((x1, x2, x3, x4), dim=1) #b*512*n
         x = self.conv5(x)
 
-        out, clustering_loss = self.spectral_pooling(x)
+        out, clustering_loss = self.spectral_pooling(x, self.args.pooling)
 
         x = F.leaky_relu(self.bn6(self.linear1(out)), negative_slope=0.2)
         x = self.dp1(x)
